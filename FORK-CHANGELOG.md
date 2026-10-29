@@ -1,3 +1,8 @@
+## 1.2.35-supervisor.2
+
+- Added the restricted `ha-codex-ha cloud-remote connect|disconnect` command. It changes only Nabu Casa remote access and preserves Alexa/Google account linking. Requires Home Assistant control and Supervisor helper manage mode.
+- Added startup of the existing optional Codex Chats watchdog so the custom chat interface survives add-on image updates.
+
 ## 1.2.35-supervisor.1
 
 - Added Supervisor manager API access through `ha-codex-ha supervisor` with off/read/manage helper modes.

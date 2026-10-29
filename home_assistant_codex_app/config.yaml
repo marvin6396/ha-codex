@@ -1,6 +1,6 @@
 name: HA Codex Supervisor
 description: Before starting, select the Codex model in App Configuration. Patch compatibility mode is enabled by default so Codex can use normal patches on Home Assistant OS. To let Codex validate, reload, or restart Home Assistant, enable "Allow Home Assistant control actions" (and separately "Allow Home Assistant Core restart"), then restart this add-on. This development build also provides Supervisor management through supervisor_access (off/read/manage).
-version: "1.2.35-supervisor.1"
+version: "1.2.35-supervisor.2"
 slug: home_assistant_codex_app
 url: https://github.com/marvin6396/ha-codex
 arch:

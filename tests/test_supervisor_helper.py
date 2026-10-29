@@ -241,6 +241,42 @@ class SupervisorHelperTests(unittest.TestCase):
                     self.assertNotEqual(r.returncode, 0)
                     self.assertNotIn("secret-response-that-must-not-be-printed", r.stdout + r.stderr)
 
+    def run_core(self, *args, **env):
+        return subprocess.run(["bash", str(self.helper), *args],
+                              env=dict(self.env, **env), capture_output=True, text=True)
+
+    def test_cloud_remote_fixed_service_routes(self):
+        for action in ("connect", "disconnect"):
+            with self.subTest(action=action):
+                r = self.run_core("cloud-remote", action, HA_CODEX_HOME_ASSISTANT_CONTROL="true",
+                                  HA_CODEX_SUPERVISOR_ACCESS="manage")
+                self.assertEqual(r.returncode, 0, r.stderr)
+                req = self.requests()[-1]
+                self.assertEqual(req["method"], "POST")
+                self.assertEqual(req["url"], f"http://supervisor/core/api/services/cloud/remote_{action}")
+
+    def test_cloud_remote_needs_both_permission_settings(self):
+        for control, mode in (("false", "manage"), ("true", "off"), ("true", "read")):
+            with self.subTest(control=control, mode=mode):
+                r = self.run_core("cloud-remote", "disconnect", HA_CODEX_HOME_ASSISTANT_CONTROL=control,
+                                  HA_CODEX_SUPERVISOR_ACCESS=mode)
+                self.assertEqual(r.returncode, 77)
+        self.assertEqual(self.requests(), [])
+
+    def test_cloud_remote_rejects_arbitrary_actions_and_extra_args(self):
+        for args in ((), ("logout",), ("remote_disconnect",), ("disconnect", "extra"), ("../logout",)):
+            with self.subTest(args=args):
+                r = self.run_core("cloud-remote", *args, HA_CODEX_HOME_ASSISTANT_CONTROL="true",
+                                  HA_CODEX_SUPERVISOR_ACCESS="manage")
+                self.assertEqual(r.returncode, 64)
+        self.assertEqual(self.requests(), [])
+
+    def test_cloud_remote_failure_is_not_success(self):
+        r = self.run_core("cloud-remote", "disconnect", HA_CODEX_HOME_ASSISTANT_CONTROL="true",
+                          HA_CODEX_SUPERVISOR_ACCESS="manage", MOCK_CURL_FAILURE="1")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertNotIn("Requested Home Assistant action", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
