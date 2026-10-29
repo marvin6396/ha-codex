@@ -15,6 +15,8 @@ Commands:
   reload <automation|script|scene|group|template|core|dashboard-resources>
                                  Reload one supported Home Assistant configuration area.
   restart                        Validate configuration, then restart Home Assistant Core.
+  cloud-remote <connect|disconnect>
+                                 Enable/disable only Nabu Casa remote access.
   supervisor <command>           System, add-on, update and backup management.
                                  Run: ha-codex-ha supervisor --help
 
@@ -74,6 +76,16 @@ call_service() {
 }
 
 case "${1:-}" in
+  cloud-remote)
+    if [ "$#" -ne 2 ]; then usage >&2; exit 64; fi
+    case "$2" in connect|disconnect) ;; *) usage >&2; exit 64 ;; esac
+    require_control
+    if [ "${HA_CODEX_SUPERVISOR_ACCESS:-off}" != manage ]; then
+      printf '%s\n' 'Cloud remote management requires supervisor_access: manage.' >&2
+      exit 77
+    fi
+    call_service cloud "remote_$2"
+    ;;
   supervisor)
     exec "$(dirname "${BASH_SOURCE[0]}")/ha-codex-supervisor" "${@:2}"
     ;;

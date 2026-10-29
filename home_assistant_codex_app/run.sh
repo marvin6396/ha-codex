@@ -216,6 +216,14 @@ fi
 # selection. xterm.js lets Shift+drag force one everywhere, but on macOS the
 # equivalent Option+drag is off unless this option is set. The README's copy and
 # paste instructions rely on it.
+# HA Codex Chats backend
+# Preserve the user's optional chat UI across image updates. This starts only
+# when that integration is installed in the shared Home Assistant directory.
+if [ -f '/homeassistant/custom_components/ha_codex_ui/backend/watchdog.mjs' ]; then
+  install -d -m 0700 /homeassistant/.ha-codex-ui
+  node '/homeassistant/custom_components/ha_codex_ui/backend/watchdog.mjs' >> '/homeassistant/.ha-codex-ui/watchdog.log' 2>&1 &
+fi
+
 exec /usr/local/bin/ttyd \
   --writable \
   --port 7681 \

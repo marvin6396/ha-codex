@@ -30,6 +30,18 @@ while the helper mode is off. No host shell or Docker socket is provided.
 
 ## Original-project updates
 
+The `ha-codex-ha cloud-remote disconnect` command disables only Nabu Casa's
+remote UI tunnel; `cloud-remote connect` provides the reverse operation. Both
+require `home_assistant_control: true` and `supervisor_access: manage`. They do
+not log out of Nabu Casa or disable Alexa/Google account linking. When changing
+the remote URL, verify the replacement HTTPS entry point first and account for
+the current browser/app session disconnecting when its old tunnel is disabled.
+
+Version `1.2.35-supervisor.2` also starts the existing custom Codex Chats watchdog
+when its integration file is present. For this fork's updates, the startup hook
+no longer needs to be reapplied manually. Other distributions may still need
+their separate hook installer.
+
 **Review upstream HA Codex updates** checks the latest published upstream
 release daily at 07:41 UTC and can also be started under Actions → Run workflow.
 
