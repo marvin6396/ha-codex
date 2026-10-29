@@ -1,0 +1,118 @@
+name: Review upstream HA Codex updates
+
+on:
+  schedule:
+    - cron: "41 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    if: github.repository == 'marvin6396/ha-codex' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Find latest upstream release
+        id: upstream
+        shell: bash
+        run: |
+          tag="$(gh api repos/ambient-home-systems/ha-codex/releases/latest --jq .tag_name)"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          branch="upstream-sync/$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          # Preserve open proposals and respect an explicitly closed proposal.
+          existing="$(gh pr list --repo "$GH_REPO" --state all --head "$branch" --limit 1 --json number --jq 'length')"
+          echo "existing=$existing" >> "$GITHUB_OUTPUT"
+
+      - name: Merge into an isolated review branch
+        id: candidate
+        if: steps.upstream.outputs.existing == '0'
+        env:
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          UPDATE_BRANCH: ${{ steps.upstream.outputs.branch }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/ambient-home-systems/ha-codex.git
+          # Recover a pushed branch if a previous run stopped before opening a PR.
+          if [ -n "$(git ls-remote origin "refs/heads/$UPDATE_BRANCH")" ]; then
+            git fetch origin "refs/heads/$UPDATE_BRANCH"
+            git switch -c "$UPDATE_BRANCH" FETCH_HEAD
+            echo "update=true" >> "$GITHUB_OUTPUT"
+            echo "branch=$UPDATE_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            python3 .github/scripts/prepare-upstream-sync.py "$UPSTREAM_TAG"
+          fi
+
+      - name: Run helper and merge tests
+        if: steps.candidate.outputs.update == 'true'
+        run: |
+          python3 -m unittest discover -s tests -v
+          bash -n home_assistant_codex_app/ha-codex-ha
+          bash -n home_assistant_codex_app/ha-codex-supervisor
+          bash -n home_assistant_codex_app/run.sh
+          bash -n home_assistant_codex_app/session.sh
+
+      - name: Push review branch and open draft proposal
+        id: proposal
+        if: steps.candidate.outputs.update == 'true'
+        env:
+          UPDATE_BRANCH: ${{ steps.candidate.outputs.branch }}
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+        shell: bash
+        run: |
+          git push origin "HEAD:refs/heads/$UPDATE_BRANCH"
+          body_file="$RUNNER_TEMP/upstream-proposal.md"
+          cat > "$body_file" <<'EOF'
+          Merges the latest published upstream HA Codex release into this fork, preserving the Supervisor extension and fork identity.
+
+          The helper and merge tests passed. Both architecture builds and startup smoke tests will be dispatched separately. This remains a draft until those checks pass. Review before merging; nothing is installed in Home Assistant automatically.
+          EOF
+          url="$(gh pr create --repo "$GH_REPO" --base main --head "$UPDATE_BRANCH" --draft --title "Review upstream HA Codex $UPSTREAM_TAG" --body-file "$body_file")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Build and smoke-test both architectures
+        if: steps.candidate.outputs.update == 'true'
+        env:
+          UPDATE_BRANCH: ${{ steps.candidate.outputs.branch }}
+          UPDATE_SHA: ${{ steps.candidate.outputs.sha }}
+        shell: bash
+        run: |
+          # GITHUB_TOKEN pushes do not trigger ordinary push/PR workflows.
+          # Dispatch the existing image validation explicitly for this SHA.
+          gh workflow run validate-addon.yml --repo "$GH_REPO" --ref "$UPDATE_BRANCH"
+          run_id=""
+          for attempt in $(seq 1 30); do
+            run_id="$(gh run list --repo "$GH_REPO" --workflow validate-addon.yml --branch "$UPDATE_BRANCH" --event workflow_dispatch --commit "$UPDATE_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+            [ -z "$run_id" ] || break
+            sleep 10
+          done
+          test -n "$run_id"
+          gh run watch "$run_id" --repo "$GH_REPO" --interval 30 --exit-status
+
+      - name: Mark passing proposal ready for your review
+        if: steps.candidate.outputs.update == 'true'
+        env:
+          PROPOSAL_URL: ${{ steps.proposal.outputs.url }}
+        run: gh pr ready "$PROPOSAL_URL" --repo "$GH_REPO"

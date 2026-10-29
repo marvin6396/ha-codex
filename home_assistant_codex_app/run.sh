@@ -20,6 +20,7 @@ MODEL="$(bashio::config 'model')"
 REASONING_EFFORT="$(bashio::config 'reasoning_effort')"
 HOME_ASSISTANT_CONTROL="$(bashio::config 'home_assistant_control')"
 ALLOW_HOME_ASSISTANT_RESTART="$(bashio::config 'allow_home_assistant_restart')"
+SUPERVISOR_ACCESS="$(bashio::config 'supervisor_access')"
 
 # "default" passes no --model, so Codex uses the model saved with /model (the
 # top-level model key in config.toml) or its own default. That saved model, when
@@ -74,6 +75,7 @@ fi
 
 export HA_CODEX_HOME_ASSISTANT_CONTROL="${HOME_ASSISTANT_CONTROL}"
 export HA_CODEX_ALLOW_HOME_ASSISTANT_RESTART="${ALLOW_HOME_ASSISTANT_RESTART}"
+export HA_CODEX_SUPERVISOR_ACCESS="${SUPERVISOR_ACCESS}"
 export HA_CODEX_PATCH_COMPATIBILITY_MODE="${PATCH_COMPATIBILITY_MODE}"
 export HA_CODEX_SKIP_COMMAND_APPROVALS="${SKIP_COMMAND_APPROVALS}"
 export HA_CODEX_FILE_TRANSFER="${FILE_TRANSFER}"
@@ -163,6 +165,7 @@ else
 fi
 bashio::log.info "Sandbox mode applies when a Codex session starts; restart the add-on after changing it so a fresh session takes effect."
 bashio::log.info "Home Assistant control actions: ${HOME_ASSISTANT_CONTROL}; Core restart: ${ALLOW_HOME_ASSISTANT_RESTART}."
+bashio::log.info "Supervisor helper access: ${SUPERVISOR_ACCESS}."
 if [ "${FILE_TRANSFER}" = "true" ]; then
   bashio::log.info "Terminal file transfer: true (trz/tsz enabled; may interfere with pasting long text)."
 else

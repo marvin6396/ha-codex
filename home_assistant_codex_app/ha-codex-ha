@@ -15,6 +15,8 @@ Commands:
   reload <automation|script|scene|group|template|core|dashboard-resources>
                                  Reload one supported Home Assistant configuration area.
   restart                        Validate configuration, then restart Home Assistant Core.
+  supervisor <command>           System, add-on, update and backup management.
+                                 Run: ha-codex-ha supervisor --help
 
 Control actions must be enabled in the HA Codex add-on Configuration tab.
 Core restart additionally requires "Allow Home Assistant Core restart".
@@ -72,6 +74,9 @@ call_service() {
 }
 
 case "${1:-}" in
+  supervisor)
+    exec "$(dirname "${BASH_SOURCE[0]}")/ha-codex-supervisor" "${@:2}"
+    ;;
   status)
     require_control
     api GET / >/dev/null

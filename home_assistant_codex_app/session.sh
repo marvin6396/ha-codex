@@ -3,7 +3,7 @@ set -u
 
 readonly MODEL="$1"
 readonly TERMINAL_MODE="$2"
-readonly HA_CODEX_INSTRUCTIONS='Home Assistant control is available only through the ha-codex-ha helper. For a requested configuration check, reload, or restart, explain the intended action and use ha-codex-ha rather than direct curl, ha, hass, systemctl, Docker, or SUPERVISOR_TOKEN access. Ask for command approval before any reload or restart. Run ha-codex-ha check before a Core restart; the helper enforces this too. Use ha-codex-ha --help to see the allowlisted actions. Dashboard configuration may require a browser refresh; dashboard-resources only reloads Lovelace resources.'
+readonly HA_CODEX_INSTRUCTIONS='Home Assistant control is available only through the ha-codex-ha helper. For a requested configuration check, reload, or restart, explain the intended action and use ha-codex-ha rather than direct curl, ha, hass, systemctl, Docker, or SUPERVISOR_TOKEN access. Ask for command approval before any reload or restart. Run ha-codex-ha check before a Core restart; the helper enforces this too. Use ha-codex-ha --help to see the allowlisted actions. Dashboard configuration may require a browser refresh; dashboard-resources only reloads Lovelace resources. Supervisor operations must also use ha-codex-ha, via its supervisor subcommands. Use ha-codex-ha supervisor --help for the supported actions. Never print access tokens or authorization links from logs.'
 readonly HA_CODEX_CONFIG_OVERRIDE="developer_instructions=\"${HA_CODEX_INSTRUCTIONS}\""
 
 cd /homeassistant
@@ -70,8 +70,8 @@ CODEX_ARGS=(--config "${HA_CODEX_CONFIG_OVERRIDE}")
 # Codex's Bubblewrap sandbox needs. Without it, apply_patch fails while reading
 # the target file ("bwrap: Failed to make / slave: Permission denied") because
 # its filesystem-verification helper runs under Bubblewrap. The add-on is
-# already the security boundary: it has no host, Docker, or Supervisor-management
-# access. Start Codex in full-access so patches use that container boundary
+# already the security boundary: it has no host shell or Docker socket;
+# this build requests Supervisor manager API access. Start Codex in full-access so patches use that container boundary
 # instead of Bubblewrap, while leaving Codex's command approval policy untouched.
 #
 # This applies only to a newly started session. Codex keeps the sandbox mode it

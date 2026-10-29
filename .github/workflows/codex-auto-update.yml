@@ -20,7 +20,7 @@ jobs:
   prepare:
     name: Check for a Codex update
     # The release fast-forwards main, so refuse runs from other branches.
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'ambient-home-systems/ha-codex' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
