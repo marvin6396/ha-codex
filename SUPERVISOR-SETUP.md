@@ -1,6 +1,6 @@
 # Supervisor extension for HA Codex 1.2.35
 
-Prepared for `marvin6396/ha-codex` as `1.2.35-supervisor.1`. This is not an upstream release.
+Maintained in `marvin6396/ha-codex` as `1.2.35-supervisor.1`. This is not an upstream release.
 See [fork installation and updates](FORK-SETUP.md) for the selected installation path.
 The running HA Codex container, its helper, developer instructions and
 Home Assistant settings have not been changed by preparing this source tree.
@@ -50,8 +50,10 @@ the installation method.
 
 The preferred way to preserve the current add-on identity and private data is
 to have the maintainer include a reviewed change in a release of the existing
-repository, then update through Home Assistant. This folder includes the source
-and tests; nothing has been published, pushed or submitted to the maintainer.
+repository, then update through Home Assistant. For this personal fork, use
+the separate repository and migration procedure in FORK-SETUP.md. This folder
+includes the source and tests; no contribution to the original maintainer is
+part of installing this fork.
 
 An alternative is a user-owned fork or local add-on. A different repository or
 local install normally gets a different add-on ID and private configuration
@@ -112,8 +114,9 @@ python3 -m unittest discover -s tests -v
 
 The tests use a fake curl executable and a test-only token. They do not contact
 the real Supervisor. The CI workflow also runs them before the amd64/aarch64
-image build and existing startup smoke tests. The container image build,
-Bashio startup and live Supervisor authorization have not been verified here.
+image build and existing startup smoke tests. Passing these checks verifies
+the image and fixture-based startup, not authorization against a live
+Supervisor. Verify live access separately after installation.
 
 API references:
 
