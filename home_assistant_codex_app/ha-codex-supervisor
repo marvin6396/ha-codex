@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# Internal implementation of `ha-codex-ha supervisor`. Not a live-system patch.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: ha-codex-ha supervisor <command> [arguments]
+
+Read access:
+  info <system|supervisor|core|os|host|network|hardware|resolution>
+  addons                          List installed add-ons, including their slugs.
+  addon-info <slug>                Details, with configuration options omitted.
+  addon-stats <slug>
+  logs <supervisor|core|host|ADDON_SLUG> [lines: 2..1000]
+  store                           List available add-ons and repositories.
+  backups                         List backups.
+  backup-info <slug>
+  jobs                            List background jobs.
+  job <id>
+
+Management access:
+  addon <start|stop|restart|rebuild|install|update|uninstall> <slug>
+  options-validate <slug> <patch.json>
+  options-set <slug> <patch.json>   Merge options, validate, then save.
+  store-reload
+  update <core|os|supervisor> [version]
+  backup-create <full|partial> <options.json>
+  backup-restore <full|partial> <slug> <options.json>
+  backup-delete <slug>
+  host <reboot|shutdown>
+
+Enable supervisor_access (read or manage) in HA Codex Configuration and restart
+the add-on. Mutations require manage. JSON files must contain one object.
+Long jobs return a job_id where supported; use job <id> to check completion.
+No arbitrary API, shell, Docker, protection-mode or disk-wipe commands exist.
+EOF
+}
+
+fail() { printf '%s\n' "$1" >&2; exit "${2:-64}"; }
+count() { [ "$ARG_COUNT" -ge "$1" ] && [ "$ARG_COUNT" -le "$2" ] || fail 'Invalid argument count. Run ha-codex-ha supervisor --help.'; }
+identifier() { [[ "$1" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]] || fail 'Invalid slug or job ID.'; }
+require_manage() {
+  [ "$ACCESS" = manage ] || fail 'Supervisor management is disabled. Set supervisor_access to manage in HA Codex Configuration and restart the add-on.' 77
+}
+
+request() {
+  local method="$1" path="$2" payload="${3:-}" response
+  local args=(--fail-with-body --silent --show-error --connect-timeout 10 --max-time 300
+    --request "$method" --header "Authorization: Bearer ${SUPERVISOR_TOKEN}"
+    --header 'Content-Type: application/json')
+  [ -z "$payload" ] || args+=(--data-binary @-)
+  # Pass payload on stdin, never in argv: options can contain passwords.
+  response="$(printf '%s' "$payload" | curl "${args[@]}" "http://supervisor${path}")" || {
+    printf '%s\n' 'Supervisor request failed. The action may still be running; check status before retrying.' >&2
+    return 1
+  }
+  if [[ "$path" == */logs\?* ]]; then
+    printf '%s\n' "$response"
+  else
+    # Do not print failed responses: validation errors may echo a secret value.
+    printf '%s' "$response" | jq -e '.result == "ok"' >/dev/null || {
+      printf '%s\n' 'Supervisor rejected the request. Check permissions, parameters and Supervisor health.' >&2
+      return 1
+    }
+    printf '%s\n' "$response"
+  fi
+}
+
+json_file() {
+  [ -f "$1" ] && [ -r "$1" ] || fail 'JSON file does not exist or is not readable.'
+  jq -e -s 'length == 1 and (.[0] | type == "object")' "$1" >/dev/null 2>&1 || fail 'Expected a file containing exactly one JSON object.'
+  jq -c . "$1"
+}
+
+mutate() {
+  require_manage
+  local payload="${2:-}"
+  [ -n "$payload" ] || payload='{}'
+  request POST "$1" "$payload"
+}
+
+ARG_COUNT="$#"
+case "${1:-}" in ''|-h|--help|help) usage; exit 0 ;; esac
+ACCESS="${HA_CODEX_SUPERVISOR_ACCESS:-off}"
+case "$ACCESS" in read|manage) ;; *) fail 'Supervisor access is disabled. Set supervisor_access to read or manage in HA Codex Configuration and restart the add-on.' 77 ;; esac
+[ -n "${SUPERVISOR_TOKEN:-}" ] || fail 'Supervisor API access is unavailable. Reinstall or restart the updated add-on.' 78
+
+case "$1" in
+  info)
+    count 2 2
+    case "$2" in
+      system) request GET /info ;;
+      supervisor|core|os|host|network|hardware|resolution) request GET "/$2/info" ;;
+      *) fail 'Unknown information target.' ;;
+    esac ;;
+  addons|store|backups|jobs)
+    count 1 1
+    request GET "/$1" ;;
+  addon-info|addon-stats|backup-info|job)
+    count 2 2; identifier "$2"
+    case "$1" in
+      addon-info) request GET "/addons/$2/info" | jq 'del(.data.options)' ;;
+      addon-stats) request GET "/addons/$2/stats" ;;
+      backup-info) request GET "/backups/$2/info" ;;
+      job) request GET "/jobs/$2" ;;
+    esac ;;
+  logs)
+    count 2 3
+    lines="${3:-100}"
+    [[ "$lines" =~ ^[1-9][0-9]{0,3}$ ]] && [ "$lines" -ge 2 ] && [ "$lines" -le 1000 ] || fail 'Log lines must be between 2 and 1000.'
+    case "$2" in
+      supervisor|core|host) path="/$2" ;;
+      *) identifier "$2"; path="/addons/$2" ;;
+    esac
+    request GET "$path/logs?lines=$lines&no_colors" ;;
+  addon)
+    count 3 3; require_manage; identifier "$3"
+    case "$2" in
+      start|stop|restart|rebuild|uninstall) mutate "/addons/$3/$2" ;;
+      install|update) mutate "/store/addons/$3/$2" '{"background":true}' ;;
+      *) fail 'Unknown add-on action.' ;;
+    esac ;;
+  options-validate|options-set)
+    count 3 3; require_manage; identifier "$2"
+    patch="$(json_file "$3")"
+    info="$(request GET "/addons/$2/info")"
+    # Shallow merge: replace a supplied option (including a nested object) as a
+    # whole, preserve all omitted options. Raw options never reach stdout.
+    options="$(printf '%s\n%s' "$info" "$patch" | jq -ces '.[0].data.options as $old | select($old | type == "object") | $old + .[1]')"
+    validation="$(request POST "/addons/$2/options/validate" "$options")"
+    printf '%s' "$validation" | jq -e '.data.valid == true' >/dev/null || fail 'Add-on options failed validation; nothing was saved.'
+    if [ "$1" = options-set ]; then
+      payload="$(printf '%s' "$options" | jq -c '{options:.}')"
+      request POST "/addons/$2/options" "$payload" >/dev/null
+      printf '%s\n' 'Add-on options saved. A separate restart may be needed.'
+    else
+      printf '%s\n' 'Add-on options are valid. Nothing was saved.'
+    fi ;;
+  store-reload)
+    count 1 1; mutate /store/reload ;;
+  update)
+    count 2 3; require_manage
+    case "$2" in core|os|supervisor) ;; *) fail 'Unknown update target.' ;; esac
+    payload='{}'
+    if [ "$#" -eq 3 ]; then
+      [[ "$3" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]] || fail 'Invalid version.'
+      payload="$(jq -cn --arg version "$3" '{version:$version}')"
+    fi
+    if [ "$2" = core ]; then
+      "$(dirname "${BASH_SOURCE[0]}")/ha-codex-ha" check
+    fi
+    mutate "/$2/update" "$payload" ;;
+  backup-create)
+    count 3 3; require_manage
+    case "$2" in full|partial) ;; *) fail 'Expected full or partial.' ;; esac
+    payload="$(json_file "$3" | jq -c '. + {background:true}')"
+    mutate "/backups/new/$2" "$payload" ;;
+  backup-restore)
+    count 4 4; require_manage; identifier "$3"
+    case "$2" in full|partial) ;; *) fail 'Expected full or partial.' ;; esac
+    payload="$(json_file "$4" | jq -c '. + {background:true}')"
+    mutate "/backups/$3/restore/$2" "$payload" ;;
+  backup-delete)
+    count 2 2; identifier "$2"; require_manage
+    request DELETE "/backups/$2" ;;
+  host)
+    count 2 2
+    case "$2" in reboot|shutdown) mutate "/host/$2" ;; *) fail 'Unknown host action.' ;; esac ;;
+  *) fail 'Unknown Supervisor command. Run ha-codex-ha supervisor --help.' ;;
+esac

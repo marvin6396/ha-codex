@@ -1,4 +1,7 @@
-# HA Codex
+# HA Codex Supervisor
+
+Personal Supervisor-management fork of [ambient-home-systems/ha-codex](https://github.com/ambient-home-systems/ha-codex).
+See [fork installation and updates](FORK-SETUP.md) before replacing an existing installation.
 
 [![Buy me a coffee](https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=Joshua.ambient.home&button_colour=40DCA5&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00)](https://www.buymeacoffee.com/Joshua.ambient.home)
 
@@ -38,15 +41,14 @@ normal file access and Codex operation continue as expected.
 | A way to have Codex inspect and propose edits to your files | An unattended administrator that should make changes without review |
 | A Home Assistant add-on with a persistent terminal session | A host-level or Docker management tool |
 
-The add-on intentionally has **no** host networking, Docker socket, full host
-access, or Supervisor-management API access. Its optional Home Assistant
-control actions use Home Assistant's internal Core API through a small,
-allowlisted helper.
+The add-on has no host networking, Docker socket or unrestricted host shell.
+This development build requests the Supervisor manager API role. Access
+through the helper defaults to off; see [Supervisor setup](SUPERVISOR-SETUP.md)
+for capabilities, permission boundaries and installation.
 
 ## Install
 
-[![Add HA Codex repository to Home Assistant](https://my.home-assistant.io/badges/supervisor.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fambient-home-systems%2Fha-codex)
-[![Latest release](https://img.shields.io/github/v/release/ambient-home-systems/ha-codex?label=version&sort=semver)](https://github.com/ambient-home-systems/ha-codex/releases/latest)
+[![Add HA Codex repository to Home Assistant](https://my.home-assistant.io/badges/supervisor.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmarvin6396%2Fha-codex)
 
 1. Select the button above to open your Home Assistant instance with the HA
    Codex repository URL pre-filled, then add the repository.
@@ -58,7 +60,7 @@ If the button does not open your Home Assistant instance, open the App Store
 and use its repository-management option to add:
 
 ```text
-https://github.com/ambient-home-systems/ha-codex
+https://github.com/marvin6396/ha-codex
 ```
 
 ## First-time sign-in
@@ -142,6 +144,7 @@ want before starting HA Codex. Restart the add-on after changing a setting.
 | **Terminal file transfer** | Off | Enables `trz`/`tsz` so you can upload files to the terminal and download them back. Leave it off unless you need it, because it can interfere with pasting long text. |
 | **Allow Home Assistant control actions** | Off | Lets Codex validate configuration and request only the supported reload actions through HA Codex's restricted helper. |
 | **Allow Home Assistant Core restart** | Off | Lets the helper restart Core only after a successful configuration check. Requires Home Assistant control actions to be enabled. |
+| **Supervisor access** | off | `read` enables system information, add-on status and logs; `manage` also enables supported configuration, lifecycle, update and backup operations. This is a helper gate, not a restriction on the container token. |
 
 ### Home Assistant reload and restart actions
 
@@ -159,9 +162,9 @@ approvals** is on.
 
 The built-in `ha-codex-ha` helper supports a configuration check; reloads for
 automations, scripts, scenes, groups, templates, Core configuration, and
-Lovelace resources; and a validated Core restart. It does not provide host,
-Docker, Supervisor, update, shutdown, or arbitrary Home Assistant service
-control. A dashboard configuration change can still require refreshing the
+Lovelace resources; and a validated Core restart. It does not provide a host shell, Docker socket, or arbitrary Home Assistant
+service control. The `supervisor` subcommand adds the documented Supervisor
+management actions when `supervisor_access` is enabled. A dashboard configuration change can still require refreshing the
 browser; reloading Lovelace resources does not itself reload a dashboard's YAML
 or storage configuration.
 
@@ -191,8 +194,8 @@ Leave **Patch compatibility mode** enabled (the default). Home Assistant OS
 blocks the nested unprivileged Bubblewrap namespace that Codex normally uses
 for patches, which can otherwise make Codex say that the normal patch mechanism
 is unavailable before it edits any file. This mode uses HA Codex's existing
-add-on container boundary instead, so normal patches work without host, Docker,
-or Supervisor-management access. It does not change Codex's command-approval
+add-on container boundary instead. Patches need no host shell or Docker socket.
+Supervisor management is a separate permission in this build. This mode does not change Codex's command-approval
 behavior. Turn it off only when diagnosing a sandbox-related issue.
 
 ## Copy and paste in the terminal
@@ -286,31 +289,8 @@ normal Codex operation is not blocked by the fallback sandbox message.
 
 ## Updates and releases
 
-Every release has three matching records:
-
-- The add-on version in `home_assistant_codex_app/config.yaml`.
-- User-facing Home Assistant update notes in the [changelog](home_assistant_codex_app/CHANGELOG.md).
-- A tagged [GitHub Release](https://github.com/ambient-home-systems/ha-codex/releases).
-
-Maintainers publish the release by running the **Publish HA Codex release**
-workflow from the Actions tab after the version bump reaches `main`. It tags the
-version-bump commit and uses that version's changelog section as the notes.
-
-Codex CLI updates are released automatically. Every 6 hours the **Update
-Codex CLI** workflow checks for a newer stable Codex CLI release. When one
-exists, it pins that version in `build.yaml`, bumps the add-on's patch version,
-adds a changelog entry, and runs the amd64 and aarch64 builds and smoke tests on a
-`codex-update/<version>` branch. The tests run as a separate **HA Codex image
-validation** run, so the commit carries the `Build and smoke-test amd64 add-on`
-and `Build and smoke-test aarch64 add-on` checks that `main` requires. If the
-test passes, it fast-forwards `main` and
-publishes the release. If the test fails, `main` stays as it is, the branch is
-kept for inspection, and the next run tries again. The workflow only changes
-the Codex version, so new models still need to be added to the model selector
-by hand.
-
-Use the App Store to install updates. Open the update details before
-installing to read the changelog.
+This fork uses reviewed upstream-release proposals rather than the inherited
+automatic CLI release stream. See [fork installation and updates](FORK-SETUP.md).
 
 ## Contributing
 

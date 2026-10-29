@@ -69,8 +69,9 @@ RUN case "${BUILD_ARCH}" in \
 COPY run.sh /run.sh
 COPY session.sh /usr/local/bin/ha-codex-session
 COPY ha-codex-ha /usr/local/bin/ha-codex-ha
+COPY ha-codex-supervisor /usr/local/bin/ha-codex-supervisor
 COPY tmux.conf /etc/ha-codex-tmux.conf
-RUN chmod 0755 /run.sh /usr/local/bin/ha-codex-session /usr/local/bin/ha-codex-ha \
+RUN chmod 0755 /run.sh /usr/local/bin/ha-codex-session /usr/local/bin/ha-codex-ha /usr/local/bin/ha-codex-supervisor \
   && mkdir -p /homeassistant /config/codex
 
 WORKDIR /homeassistant

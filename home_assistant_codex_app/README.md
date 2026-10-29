@@ -1,4 +1,7 @@
-# HA Codex
+# HA Codex Supervisor
+
+Personal Supervisor-management fork of [ambient-home-systems/ha-codex](https://github.com/ambient-home-systems/ha-codex).
+See [fork installation and updates](../FORK-SETUP.md) before replacing an existing installation.
 
 Use OpenAI Codex in a Home Assistant sidebar workspace. The add-on starts a
 persistent web terminal in `/homeassistant`, which is your Home Assistant
@@ -22,14 +25,14 @@ configuration directory.
 - Keep a Codex session alive while you leave and return to the Home Assistant sidebar.
 - Attach files from your device with `trz`, and download files back with `tsz` (enable **Terminal file transfer** first).
 
-It deliberately does **not** request host networking, Docker access, full host
-access, or Supervisor-management API access. Optional Home Assistant control
-uses the supported internal Core API through a restricted helper.
+It does not request host networking, a Docker socket or a host shell.
+This development build requests the
+Supervisor manager API role; access through the helper defaults to off.
+See [Supervisor setup](../SUPERVISOR-SETUP.md) for capabilities and installation.
 
 ## Install
 
-[![Add HA Codex repository to Home Assistant](https://my.home-assistant.io/badges/supervisor.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fambient-home-systems%2Fha-codex)
-[![Latest release](https://img.shields.io/github/v/release/ambient-home-systems/ha-codex?label=version&sort=semver)](https://github.com/ambient-home-systems/ha-codex/releases/latest)
+[![Add HA Codex repository to Home Assistant](https://my.home-assistant.io/badges/supervisor.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmarvin6396%2Fha-codex)
 
 1. Select the button above to open your Home Assistant instance with the HA
    Codex repository URL pre-filled, then add the repository.
@@ -41,7 +44,7 @@ If the button does not open your Home Assistant instance, open the App Store
 and use its repository-management option to add:
 
 ```text
-https://github.com/ambient-home-systems/ha-codex
+https://github.com/marvin6396/ha-codex
 ```
 
 See the [changelog](CHANGELOG.md) for what changed in each release.
@@ -105,6 +108,7 @@ Codex.
 | **Codex memories** | Off | Starts new Codex sessions with the Codex memories feature enabled, so Codex can remember useful details between sessions. When off, any choice made with `/memories` in Codex still applies. |
 | **Allow Home Assistant control actions** | Off | Enables HA Codex's restricted configuration check and reload helper. |
 | **Allow Home Assistant Core restart** | Off | Allows the helper to restart Core after a successful configuration check. Requires control actions to be enabled. |
+| **Supervisor access** | off | `read` enables system information, add-on status and logs; `manage` also enables supported configuration, lifecycle, update and backup operations. This is a helper gate, not a restriction on the container token. |
 
 For long reviews, leave **Preserve terminal history** on. A visible gold
 history rail at the right edge shows your position in the history: use its
@@ -121,8 +125,8 @@ does not allow the nested unprivileged Bubblewrap namespace Codex normally uses
 for patches. Without this mode, Codex may report that its normal patch mechanism
 is unavailable before it touches a file and use a shell-edit fallback instead.
 Patch compatibility mode uses HA Codex's existing add-on container boundary so
-normal patches work without host, Docker, or Supervisor-management access. It
-does not change Codex's command-approval behavior. Disable it only when
+normal patches need no host shell or Docker socket. Supervisor management is a
+separate permission in this build. Patch mode does not change Codex's command-approval behavior. Disable it only when
 diagnosing a sandbox-related issue.
 
 The sandbox mode is fixed when a Codex session **starts**. Because Session
@@ -173,9 +177,10 @@ Codex uses the built-in `ha-codex-ha` helper, which can validate configuration,
 reload automations, scripts, scenes, groups, templates, Core configuration, or
 Lovelace resources, and restart Core only after validation. Codex must explain
 the action and request command approval first, unless **Skip command approvals**
-is on. The helper cannot control the
-host, Docker, Supervisor, updates, shutdown, or arbitrary Home Assistant
-services. Refresh the browser after dashboard changes; reloading Lovelace
+is on. The `supervisor` subcommand adds the documented system, add-on, update
+and backup actions when `supervisor_access` is enabled. It provides no host
+shell, Docker socket or arbitrary Home Assistant service calls.
+Refresh the browser after dashboard changes; reloading Lovelace
 resources does not reload dashboard YAML or storage configuration by itself.
 
 ## Copy and paste in the terminal
@@ -256,5 +261,5 @@ Create a Home Assistant backup and a Git checkpoint before significant edits.
 
 This is a terminal-based Codex workspace, not an Assist conversation agent. It
 can read and edit `/homeassistant` because that directory is intentionally
-mounted read/write. It cannot control Docker, access the host, or call the
-Supervisor-management API. Keep access to your Home Assistant account protected.
+mounted read/write. It has no Docker socket or host shell. This development build can manage
+the system through the Supervisor API when its helper is enabled. Keep access to your Home Assistant account protected.

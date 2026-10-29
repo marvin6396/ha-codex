@@ -6,6 +6,9 @@ on:
       - "home_assistant_codex_app/**"
       - ".github/workflows/validate-addon.yml"
       - ".github/scripts/supervisor-options-fixture.cjs"
+      - ".github/scripts/prepare-upstream-sync.py"
+      - ".github/workflows/sync-upstream.yml"
+      - "tests/**"
   # The Codex auto-update workflow dispatches this on its update branch before
   # releasing, since pushes made with GITHUB_TOKEN start no workflows. As its
   # own run, its checks carry the names main's ruleset requires.
@@ -33,6 +36,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+
+      - name: Validate shell scripts and Supervisor helper with a simulated API
+        run: |
+          bash -n home_assistant_codex_app/ha-codex-ha
+          bash -n home_assistant_codex_app/ha-codex-supervisor
+          bash -n home_assistant_codex_app/run.sh
+          bash -n home_assistant_codex_app/session.sh
+          python3 -m unittest discover -s tests -v
 
       - name: Read pinned build configuration
         id: build_config
@@ -76,6 +87,8 @@ jobs:
           docker run --rm --env EXPECTED_CODEX_VERSION --entrypoint /bin/sh "$image" -ec '
             command -v codex
             test -x /usr/local/bin/codex
+            test -x /usr/local/bin/ha-codex-supervisor
+            ha-codex-ha supervisor --help
             test "$(codex --version)" = "codex-cli ${EXPECTED_CODEX_VERSION}"
             command -v codex-code-mode-host
             test -x /usr/local/bin/codex-code-mode-host
@@ -129,7 +142,7 @@ jobs:
             IFS=: read -r model effort expected_effort <<< "$case"
             grep -E '^  model: list\(' home_assistant_codex_app/config.yaml | grep -F "$model"
             grep -E '^  reasoning_effort: list\(' home_assistant_codex_app/config.yaml | grep -E "[(|]${effort}[|)]"
-            printf '{"model":"%s","reasoning_effort":"%s","terminal_font_size":14,"terminal_scrollback":5000,"terminal_theme":"dark","session_persistence":true,"preserve_terminal_history":true,"patch_compatibility_mode":true,"skip_command_approvals":false,"file_transfer":false,"memories":false,"home_assistant_control":false,"allow_home_assistant_restart":false}\n' "$model" "$effort" > "$options_file"
+            printf '{"model":"%s","reasoning_effort":"%s","terminal_font_size":14,"terminal_scrollback":5000,"terminal_theme":"dark","session_persistence":true,"preserve_terminal_history":true,"patch_compatibility_mode":true,"skip_command_approvals":false,"file_transfer":false,"memories":false,"home_assistant_control":false,"allow_home_assistant_restart":false,"supervisor_access":"off"}\n' "$model" "$effort" > "$options_file"
             docker run --detach --name ha-codex-runtime-smoke \
               --network ha-codex-smoke "$image"
 

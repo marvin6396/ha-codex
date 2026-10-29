@@ -18,7 +18,7 @@ jobs:
   publish:
     name: Publish release
     # Tags must land on main's history, so refuse runs from other branches.
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'ambient-home-systems/ha-codex' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
 
