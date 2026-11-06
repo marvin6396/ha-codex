@@ -1,3 +1,8 @@
+## 1.2.36-supervisor.1
+
+- Merged upstream release v1.2.36, preserving the Supervisor extension.
+- Requires passing helper tests and both architecture builds before use.
+
 ## 1.2.35-supervisor.2
 
 - Added the restricted `ha-codex-ha cloud-remote connect|disconnect` command. It changes only Nabu Casa remote access and preserves Alexa/Google account linking. Requires Home Assistant control and Supervisor helper manage mode.
